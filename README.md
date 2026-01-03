@@ -1,4 +1,4 @@
-# CollegeSecure Browser
+# NetGlide:-CollegeSecure Browser
 
 **India's Potential First College-Owned Secure Browser**  
 A custom, lightweight desktop browser built specifically for Indian colleges and universities to solve real campus WiFi/network frustration while providing private admin oversight.

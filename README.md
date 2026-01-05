@@ -3,7 +3,17 @@
 **India's Potential First College-Owned Secure Browser**  
 A custom, lightweight desktop browser built specifically for Indian colleges and universities to solve real campus WiFi/network frustration while providing private admin oversight.
 
-![Browser Screenshot](screenshots/browser-main.png)
+![Browser Screenshot]
+<img width="1839" height="929" alt="image" src="https://github.com/user-attachments/assets/8b217162-0c6a-4c7f-8661-a4c72e3ec542" />
+<img width="802" height="935" alt="image" src="https://github.com/user-attachments/assets/9e672b3f-87c9-4621-aa08-386eaf8c5574" />
+<img width="807" height="942" alt="image" src="https://github.com/user-attachments/assets/203f2249-3e03-42c1-a132-5961c12bf5d1" />
+<img width="797" height="948" alt="image" src="https://github.com/user-attachments/assets/23f507ce-d7dd-4421-8b20-f6b85e34109e" />
+<img width="823" height="905" alt="image" src="https://github.com/user-attachments/assets/1508dbe3-bfd2-4a84-b77a-dbfefb650673" />
+<img width="534" height="937" alt="image" src="https://github.com/user-attachments/assets/b3e6ef26-7d42-4ace-91fa-c0de7f522ad2" />
+<img width="1587" height="843" alt="image" src="https://github.com/user-attachments/assets/4340c164-77d4-4c1c-bc1c-f9dc0a12f847" />
+<img width="506" height="743" alt="image" src="https://github.com/user-attachments/assets/99abd381-550d-4c71-99c2-a974771d28d1" />
+
+
 
 ### The Problem It Solves
 Standard browsers (Chrome, Opera, Firefox) frequently fail on restricted college WiFi due to firewall policies, bandwidth limits, and security blocks — leading to endless IT complaints from students.  

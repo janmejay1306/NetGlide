@@ -11,9 +11,10 @@ interface BrowserTabProps {
   };
   onClose: (id: string) => void;
   onClick: (id: string) => void;
+  isCompact?: boolean;
 }
 
-export function BrowserTab({ tab, onClose, onClick }: BrowserTabProps) {
+export function BrowserTab({ tab, onClose, onClick, isCompact }: BrowserTabProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   // Extract favicon domain if URL exists
@@ -37,7 +38,7 @@ export function BrowserTab({ tab, onClose, onClick }: BrowserTabProps) {
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
       onClick={() => onClick(tab.id)}
-      className={`relative flex items-center gap-2 pl-3 pr-2 py-1.5 min-w-[140px] max-w-[220px] rounded-lg cursor-pointer group transition-all duration-200 shrink-0 border overflow-hidden ${
+      className={`relative flex items-center gap-2 pl-3 pr-2 py-1.5 ${isCompact ? 'min-w-[40px] px-1 justify-center' : 'min-w-[140px] max-w-[220px]'} rounded-lg cursor-pointer group transition-all duration-200 shrink-0 border overflow-hidden ${
         tab.isActive
           ? 'bg-white/[0.08] border-white/[0.12] text-white shadow-lg shadow-purple-500/5 backdrop-blur-xl'
           : 'bg-transparent border-transparent text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]'
@@ -87,15 +88,17 @@ export function BrowserTab({ tab, onClose, onClick }: BrowserTabProps) {
       </div>
 
       {/* Tab title */}
-      <motion.div
-        className="relative z-10 flex-1 truncate text-xs font-medium"
-        animate={{
-          color: tab.isActive ? '#ffffff' : isHovered ? '#e5e7eb' : '#9ca3af',
-        }}
-        transition={{ duration: 0.15 }}
-      >
-        {tab.title || 'New Tab'}
-      </motion.div>
+      {!isCompact && (
+        <motion.div
+          className="relative z-10 flex-1 truncate text-xs font-medium"
+          animate={{
+            color: tab.isActive ? '#ffffff' : isHovered ? '#e5e7eb' : '#9ca3af',
+          }}
+          transition={{ duration: 0.15 }}
+        >
+          {tab.title || 'New Tab'}
+        </motion.div>
+      )}
 
       {/* Close button */}
       <motion.button

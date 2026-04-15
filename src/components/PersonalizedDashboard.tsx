@@ -5,7 +5,7 @@ import {
   StickyNote, Plus, X, Trash2, BarChart3, Activity,
   GraduationCap, Briefcase, FlaskConical, PenTool,
   Megaphone, Lightbulb, Eye, Timer, ChevronRight,
-  Sparkles, Target, Star,
+  Sparkles, Target, Star, Calendar,
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────
@@ -28,6 +28,9 @@ interface PersonalizedDashboardProps {
   profession: string;
   history: HistoryItem[];
   onNavigate: (url: string) => void;
+  schedules?: any[];
+  onAddSchedule?: (item: any) => void;
+  onRemoveSchedule?: (id: string) => void;
 }
 
 // ── Profession-specific data ─────────────────────────────────────
@@ -234,7 +237,7 @@ function formatDuration(minutes: number): string {
 }
 
 // ── Component ────────────────────────────────────────────────────
-export function PersonalizedDashboard({ profession, history, onNavigate }: PersonalizedDashboardProps) {
+export function PersonalizedDashboard({ profession, history, onNavigate, schedules = [], onAddSchedule, onRemoveSchedule }: PersonalizedDashboardProps) {
   const config = PROFESSION_CONFIGS[profession] || DEFAULT_CONFIG;
   const Icon = config.icon;
 
@@ -242,7 +245,7 @@ export function PersonalizedDashboard({ profession, history, onNavigate }: Perso
   const [notes, setNotes] = useState<DashboardNote[]>([]);
   const [newNoteText, setNewNoteText] = useState('');
   const [showAddNote, setShowAddNote] = useState(false);
-  const [activeSection, setActiveSection] = useState<'overview' | 'suggestions' | 'notes'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'suggestions' | 'notes' | 'schedule'>('overview');
 
   // Load notes from localStorage
   useEffect(() => {
@@ -391,7 +394,7 @@ export function PersonalizedDashboard({ profession, history, onNavigate }: Perso
 
           {/* Tab Switcher */}
           <div className="flex bg-white/5 rounded-xl p-1 gap-1">
-            {(['overview', 'suggestions', 'notes'] as const).map(section => (
+            {(['overview', 'suggestions', 'notes', 'schedule'] as const).map(section => (
               <button
                 key={section}
                 onClick={() => setActiveSection(section)}
@@ -785,7 +788,150 @@ export function PersonalizedDashboard({ profession, history, onNavigate }: Perso
             </div>
           </motion.div>
         )}
+
+        {/* ═══════════════════════════════════════════════════════
+            SCHEDULE TAB
+            ═══════════════════════════════════════════════════════ */}
+        {activeSection === 'schedule' && (
+          <motion.div
+            key="schedule"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            <ScheduleTabContent 
+              config={config} 
+              schedules={schedules} 
+              onAdd={onAddSchedule} 
+              onRemove={onRemoveSchedule} 
+            />
+          </motion.div>
+        )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+function ScheduleTabContent({ config, schedules, onAdd, onRemove }: { config: ProfessionConfig, schedules: any[], onAdd?: (item: any) => void, onRemove?: (id: string) => void }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newEvent, setNewEvent] = useState({ title: '', description: '', time: '' });
+
+  const handleAdd = () => {
+    if (!newEvent.title || !newEvent.time) return;
+    onAdd?.(newEvent);
+    setNewEvent({ title: '', description: '', time: '' });
+    setShowAdd(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+          <Calendar className={`w-4 h-4 ${config.accentColor}`} />
+          Daily Schedule
+        </h4>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            showAdd ? 'bg-red-500/15 text-red-300' : `bg-gradient-to-r ${config.gradient} text-white`
+          }`}
+        >
+          {showAdd ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+          {showAdd ? 'Cancel' : 'New Event'}
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showAdd && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-5 rounded-2xl bg-white/[0.04] border border-white/[0.08] space-y-3"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-gray-500 uppercase ml-1">Title</label>
+                <input
+                  type="text"
+                  value={newEvent.title}
+                  onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
+                  placeholder="Task Name..."
+                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-gray-500 uppercase ml-1">Time</label>
+                <input
+                  type="time"
+                  value={newEvent.time}
+                  onChange={e => setNewEvent({ ...newEvent, time: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-mono"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-gray-500 uppercase ml-1">Action / Note</label>
+              <input
+                type="text"
+                value={newEvent.description}
+                onChange={e => setNewEvent({ ...newEvent, description: e.target.value })}
+                placeholder="What to do..."
+                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm"
+              />
+            </div>
+            <button
+              onClick={handleAdd}
+              disabled={!newEvent.title || !newEvent.time}
+              className={`w-full py-2.5 rounded-xl bg-gradient-to-r ${config.gradient} text-white text-sm font-bold shadow-lg disabled:opacity-30`}
+            >
+              Add to Schedule
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="space-y-2">
+        {schedules.length === 0 ? (
+          <div className="p-8 text-center bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
+            <p className="text-sm text-gray-500 font-medium">No events scheduled for today</p>
+          </div>
+        ) : (
+          schedules
+            .sort((a, b) => a.time.localeCompare(b.time))
+            .map((item, idx) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.03 }}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] group hover:bg-white/[0.05] transition-colors"
+              >
+                <div className="flex flex-col items-center justify-center py-1 px-3 rounded-xl bg-white/5 border border-white/5 min-w-[64px]">
+                  <span className="text-sm font-bold text-white font-mono">{item.time}</span>
+                  <span className="text-[9px] text-gray-500 uppercase font-black">Today</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h5 className="text-sm font-semibold text-gray-200 truncate">{item.title}</h5>
+                  <p className="text-xs text-gray-500 truncate">{item.description}</p>
+                </div>
+                {item.notified && (
+                   <div className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-1">
+                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                     <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tighter">Notified</span>
+                   </div>
+                )}
+                <button
+                  onClick={() => onRemove?.(item.id)}
+                  className="p-2 rounded-lg text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </motion.div>
+            ))
+        )}
+      </div>
+    </div>
   );
 }

@@ -155,8 +155,7 @@ export function QuickLinks({ profession, onNavigate, customLinks = [], onCustomL
   return (
     <div className="relative">
       {/* Edit Toggle */}
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Quick Links</h3>
+      <div className="flex items-center justify-end mb-5">
         <div className="flex items-center gap-2">
           {isEditing && hiddenCount > 0 && (
             <motion.button

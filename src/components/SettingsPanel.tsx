@@ -835,7 +835,7 @@ function SettingsPanelInner({ isOpen, onClose, settings, onSettingsChange, profe
                          { id: 'minimal', label: 'Minimal', desc: 'Clean text only' },
                          { id: 'modern-glow', label: 'Modern Glow', desc: 'Sleek with glow' },
                          { id: 'futuristic', label: 'Futuristic', desc: 'Glass-morphism style' },
-                         { id: 'retro', label: 'Retro', desc: 'Digital terminal feel' },
+                         { id: 'cyber-neon', label: 'Cyber Neon', desc: 'Vibrant grid & laser feel' },
                        ] as const).map((theme) => {
                          const isActive = settings.timeSectionTheme === theme.id;
                          return (
@@ -860,7 +860,7 @@ function SettingsPanelInner({ isOpen, onClose, settings, onSettingsChange, profe
                   {/* Max Tabs Per Row */}
                   <SectionCard title="Max Tabs Per Row" icon={Grid3X3}>
                     <div className="flex items-center gap-3">
-                      {([4, 5, 6, 8, 10] as const).map((count) => {
+                      {([5, 6, 8, 10] as const).map((count) => {
                         const isActive = (settings.maxTabsPerRow || 6) === count;
                         return (
                           <button
@@ -888,7 +888,6 @@ function SettingsPanelInner({ isOpen, onClose, settings, onSettingsChange, profe
                       uiDensity: 'comfortable',
                       animationSpeed: 'normal',
                       showParticles: true,
-                      showQuickTips: true,
                       maxTabsPerRow: 6,
                       timeSectionTheme: 'modern-glow',
                     })}

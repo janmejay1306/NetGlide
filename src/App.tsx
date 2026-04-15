@@ -24,6 +24,8 @@ import {
   HelpCircle,
   LogOut,
   UserCircle2,
+  Bell,
+  Download,
 } from 'lucide-react';
 import { ParticleBackground } from './components/ParticleBackground';
 import { ProfessionPrompt } from './components/ProfessionPrompt';
@@ -99,10 +101,30 @@ interface AppSettings {
   animationSpeed: string;
   showParticles: boolean;
   tabCloseAction: string;
-  showQuickTips: boolean;
   maxTabsPerRow: number;
   fontFamily: string;
   timeSectionTheme: string;
+}
+
+export interface DownloadItem {
+  id: string;
+  name: string;
+  progress: number;
+  speed: string;
+  totalSize: string;
+  status: 'downloading' | 'completed' | 'failed';
+  icon: string;
+  startTime: number;
+}
+
+export interface ScheduleItem {
+  id: string;
+  title: string;
+  description: string;
+  time: string; // HH:mm
+  notified: boolean;
+  read: boolean;
+  createdAt: number;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -131,7 +153,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   animationSpeed: 'normal',
   showParticles: true,
   tabCloseAction: 'previous',
-  showQuickTips: true,
   maxTabsPerRow: 6,
   fontFamily: 'Inter',
   timeSectionTheme: 'modern-glow',
@@ -200,6 +221,11 @@ function App() {
   const [showDashboardPopup, setShowDashboardPopup] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState(-1);
+  const [showDownloads, setShowDownloads] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [activeNotifications, setActiveNotifications] = useState<{ id: string; title: string, description: string, time: string }[]>([]);
   const searchBarRef = useRef<HTMLDivElement>(null);
 
   // Google suggestions + recent search history state
@@ -298,6 +324,10 @@ function App() {
   }, [searchQuery, recentSearches]);
 
   // ── Merged suggestion list for keyboard navigation ────────
+  const triggeredSchedules = useMemo(() => {
+    return schedules.filter(s => s.notified);
+  }, [schedules]);
+  
   const allSuggestions = useMemo(() => {
     const items: { kind: 'recent' | 'google' | 'bookmark' | 'history' | 'search'; label: string; url?: string }[] = [];
     const seen = new Set<string>();
@@ -339,6 +369,7 @@ function App() {
     const savedSettings = localStorage.getItem('cozytab_settings');
     const savedCustomLinks = localStorage.getItem('cozytab_custom_links');
     const savedHiddenLinks = localStorage.getItem('cozytab_hidden_links');
+    const savedSchedules = localStorage.getItem('cozytab_schedules');
     const hasSeenPrompt = localStorage.getItem('cozytab_seen_prompt');
 
     if (savedSettings) {
@@ -368,6 +399,7 @@ function App() {
     if (savedHistory) setHistory(JSON.parse(savedHistory));
     if (savedCustomLinks) setCustomLinks(JSON.parse(savedCustomLinks));
     if (savedHiddenLinks) setHiddenLinkIds(JSON.parse(savedHiddenLinks));
+    if (savedSchedules) setSchedules(JSON.parse(savedSchedules));
     if (!hasSeenPrompt) setShowProfessionPrompt(true);
   }, []);
 
@@ -378,6 +410,58 @@ function App() {
   useEffect(() => { localStorage.setItem('cozytab_settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('cozytab_custom_links', JSON.stringify(customLinks)); }, [customLinks]);
   useEffect(() => { localStorage.setItem('cozytab_hidden_links', JSON.stringify(hiddenLinkIds)); }, [hiddenLinkIds]);
+  useEffect(() => { localStorage.setItem('cozytab_schedules', JSON.stringify(schedules)); }, [schedules]);
+
+  // ── Notification Check Timer ───────────────────────────────
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+
+      setSchedules(prev => {
+        let changed = false;
+        const newSchedules = prev.map(item => {
+          const [h, m] = item.time.split(':').map(Number);
+          const taskTimeInMinutes = h * 60 + m;
+          
+          // Check if it's exactly 5 minutes before the task and we haven't notified
+          if (!item.notified && taskTimeInMinutes - currentTimeInMinutes <= 5 && taskTimeInMinutes - currentTimeInMinutes > 0) {
+            setActiveNotifications(an => [
+              ...an, 
+              { id: item.id, title: item.title, description: item.description, time: item.time }
+            ]);
+            changed = true;
+            return { ...item, notified: true };
+          }
+          return item;
+        });
+        return changed ? newSchedules : prev;
+      });
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleAddSchedule = useCallback((item: Omit<ScheduleItem, 'id' | 'notified' | 'read' | 'createdAt'>) => {
+    const newItem: ScheduleItem = {
+      ...item,
+      id: Date.now().toString(),
+      notified: false,
+      read: false,
+      createdAt: Date.now(),
+    };
+    setSchedules(prev => [newItem, ...prev]);
+  }, []);
+
+  const handleMarkAllAsRead = useCallback(() => {
+    setSchedules(prev => prev.map(s => s.notified ? { ...s, read: true } : s));
+  }, []);
+
+  const handleRemoveSchedule = useCallback((id: string) => {
+    setSchedules(prev => prev.filter(s => s.id !== id));
+  }, []);
 
   // ── Time Tracking ────────────────────────────────────────────
   useEffect(() => {
@@ -801,10 +885,24 @@ function App() {
         <div className="w-full shrink-0 flex flex-col bg-black/60 backdrop-blur-3xl border-b border-white/10 z-50">
           
           {/* Tier 1: Browser Tabs */}
-          <div className="w-full flex items-center h-11 px-2 mt-1 gap-1 overflow-x-auto custom-scrollbar">
+          <div 
+            className="w-full flex items-center h-11 px-2 mt-1 gap-1"
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: currentWorkspace.tabs.length > 8 
+                ? `repeat(${currentWorkspace.tabs.length}, minmax(40px, 1fr)) 40px` 
+                : 'repeat(auto-fill, minmax(140px, 1fr)) 40px' 
+            }}
+          >
             <AnimatePresence>
               {currentWorkspace.tabs.map((tab) => (
-                <BrowserTab key={tab.id} tab={tab} onClose={handleCloseTab} onClick={handleTabClick} />
+                <BrowserTab 
+                  key={tab.id} 
+                  tab={tab} 
+                  onClose={handleCloseTab} 
+                  onClick={handleTabClick}
+                  isCompact={currentWorkspace.tabs.length > 8}
+                />
               ))}
             </AnimatePresence>
             <Button onClick={handleNewTab} variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-white hover:bg-white/10 shrink-0 ml-1">
@@ -854,8 +952,16 @@ function App() {
                     setSelectedSuggestionIdx(-1);
                   }}
                   onKeyDown={handleSearch}
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => { setTimeout(() => setShowSuggestions(false), 200); }}
+                  onFocus={(e) => {
+                    setShowSuggestions(true);
+                    if (activeTab?.url && !searchQuery) {
+                      setSearchQuery(activeTab.url);
+                    }
+                    e.currentTarget.select();
+                  }}
+                  onBlur={() => { 
+                    setTimeout(() => setShowSuggestions(false), 200); 
+                  }}
                   placeholder={activeTab?.url ? activeTab.url : "Search or enter URL..."}
                   className="flex-1 border-0 bg-transparent text-white placeholder:text-gray-500 shadow-none focus-visible:ring-0 h-full text-sm font-medium px-3 leading-loose"
                   autoComplete="off"
@@ -1102,9 +1208,156 @@ function App() {
 
             {/* Actions: History, Bookmarks, Profile, Dashboard | Workspaces, Night Mode, Settings */}
             <div className="flex items-center gap-1 shrink-0">
-              <Button onClick={() => setShowHistory(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="History"><History className="w-4 h-4" /></Button>
-              <Button onClick={() => setShowBookmarks(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="Bookmarks"><Bookmark className="w-4 h-4" /></Button>
-              <Button onClick={() => setShowProfileMenu(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="Profile"><User className="w-4 h-4" /></Button>
+              <div className="relative">
+                <Button 
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                  }} 
+                  variant="ghost" size="icon" 
+                  className={`text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9 relative ${showNotifications ? 'bg-white/10 text-white' : ''}`} 
+                  title="Notifications"
+                >
+                  <Bell className="w-4 h-4" />
+                  {schedules.some(s => s.notified && !s.read) && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-gray-900" />}
+                </Button>
+                
+                <AnimatePresence>
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      className="absolute top-full right-0 mt-2 w-80 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-white">Reminders {schedules.filter(s => s.notified && !s.read).length > 0 && <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px]">{schedules.filter(s => s.notified && !s.read).length}</span>}</h4>
+                        <button onClick={handleMarkAllAsRead} className="text-[10px] text-gray-500 hover:text-white transition-colors">Read all</button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-2 space-y-2">
+                        {triggeredSchedules.length === 0 ? (
+                          <div className="py-8 text-center text-gray-500 text-xs text-pretty px-6">
+                            You're all caught up! No recent alerts or upcoming tasks.
+                          </div>
+                        ) : (
+                          triggeredSchedules.map(n => (
+                            <div key={n.id} className={`p-3 rounded-xl border transition-colors ${!n.read ? 'bg-purple-500/10 border-purple-500/30' : 'bg-white/5 border-white/5'}`}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" />}
+                                  <span className={`text-[10px] font-bold uppercase tracking-tighter ${!n.read ? 'text-purple-400' : 'text-gray-500'}`}>Event Alert</span>
+                                </div>
+                                <span className={`text-[10px] font-mono ${!n.read ? 'text-purple-300' : 'text-gray-500'}`}>{n.time}</span>
+                              </div>
+                              <h5 className={`text-sm font-semibold mt-1 ${!n.read ? 'text-white' : 'text-gray-400'}`}>{n.title}</h5>
+                              <p className={`text-xs ${!n.read ? 'text-gray-300' : 'text-gray-500'}`}>{n.description}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="relative">
+                <Button 
+                  onClick={() => {
+                    setShowDownloads(!showDownloads);
+                    // Demo: add a download if list is empty
+                    if (downloads.length === 0) {
+                      const demo: DownloadItem = {
+                        id: 'demo-1',
+                        name: 'NetGlide_Beta_Update.zip',
+                        progress: 0,
+                        speed: '2.4 MB/s',
+                        totalSize: '245 MB',
+                        status: 'downloading',
+                        icon: '📦',
+                        startTime: Date.now()
+                      };
+                      setDownloads([demo]);
+                      const iv = setInterval(() => {
+                        setDownloads(prev => {
+                          const item = prev[0];
+                          if (!item || item.progress >= 100) {
+                            clearInterval(iv);
+                            return prev.map(p => p.id === 'demo-1' ? { ...p, status: 'completed', progress: 100 } : p);
+                          }
+                          return prev.map(p => p.id === 'demo-1' ? { ...p, progress: Math.min(100, item.progress + 1.5), speed: (2.0 + Math.random() * 0.8).toFixed(1) + ' MB/s' } : p);
+                        });
+                      }, 500);
+                    }
+                  }} 
+                  variant="ghost" size="icon" 
+                  className={`text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9 relative ${showDownloads ? 'bg-white/10 text-white' : ''}`} 
+                  title="Downloads"
+                >
+                  <Download className="w-4 h-4" />
+                  {downloads.some(d => d.status === 'downloading') && (
+                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
+                      <circle
+                        cx="18" cy="18" r="14"
+                        fill="none"
+                        stroke="rgba(168, 85, 247, 0.2)"
+                        strokeWidth="2"
+                      />
+                      <circle
+                        cx="18" cy="18" r="14"
+                        fill="none"
+                        stroke="#a855f7"
+                        strokeWidth="2"
+                        strokeDasharray={2 * Math.PI * 14}
+                        strokeDashoffset={2 * Math.PI * 14 * (1 - (downloads.find(d => d.status === 'downloading')?.progress || 0) / 100)}
+                        strokeLinecap="round"
+                        style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+                      />
+                    </svg>
+                  )}
+                </Button>
+
+                <AnimatePresence>
+                  {showDownloads && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      className="absolute top-full right-0 mt-2 w-80 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-white">Downloads</h4>
+                        <button onClick={() => setDownloads([])} className="text-[10px] text-gray-500 hover:text-white transition-colors">Clear all</button>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto p-2 space-y-1">
+                        {downloads.length === 0 ? (
+                          <div className="py-10 text-center text-gray-500 text-xs">No downloads yet</div>
+                        ) : (
+                          downloads.map(d => (
+                            <div key={d.id} className="p-3 rounded-xl bg-white/5 border border-white/5">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 rounded-lg bg-white/5 text-lg">{d.icon}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">{d.name}</p>
+                                  <div className="flex items-center justify-between mt-0.5">
+                                    <span className="text-[10px] text-gray-500">{d.totalSize}</span>
+                                    <span className="text-[10px] font-mono text-purple-400">{d.status === 'downloading' ? d.speed : 'Completed'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden relative">
+                                <motion.div 
+                                  className={`h-full bg-gradient-to-r from-purple-500 to-blue-500`}
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${d.progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <Button onClick={() => setShowDashboardPopup(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="Dashboard"><Timer className="w-4 h-4" /></Button>
               <div className="w-px h-5 bg-white/10 mx-1" />
               <Button onClick={() => setShowWorkspaces(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="Workspaces"><Layers className="w-4 h-4" /></Button>
@@ -1124,15 +1377,26 @@ function App() {
             {showHomePage ? (
               <div className="h-full overflow-y-auto p-8 pt-6 relative">
                 {/* NetGlide Logo Overlay */}
-                <div className="absolute top-6 left-8 z-40 pointer-events-none select-none">
-                  <motion.img
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    src={logo}
-                    alt="NetGlide"
-                    className="h-10 w-auto brightness-110"
-                  />
-                </div>
+                {showHomePage && !searchQuery.trim() && (
+                  <div className="absolute top-6 left-8 z-40 pointer-events-none select-none">
+                    <motion.img
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      src={logo}
+                      alt="NetGlide"
+                      className="h-10 w-auto brightness-110"
+                    />
+                  </div>
+                )}
+                
+                {/* Floating Action Icons mirrored under Navbar parents - Main Page Only */}
+                {showHomePage && !searchQuery.trim() && (
+                  <div className="absolute top-0 right-4 z-40 flex items-center gap-1 pt-1">
+                    <Button onClick={() => setShowHistory(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/12 rounded-full w-9 h-9 backdrop-blur-md bg-white/5 border border-white/5" title="History"><History className="w-4 h-4" /></Button>
+                    <Button onClick={() => setShowBookmarks(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/12 rounded-full w-9 h-9 backdrop-blur-md bg-white/5 border border-white/5" title="Bookmarks"><Bookmark className="w-4 h-4" /></Button>
+                    <Button onClick={() => setShowProfileMenu(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/12 rounded-full w-9 h-9 backdrop-blur-md bg-white/5 border border-white/5" title="Profile"><User className="w-4 h-4" /></Button>
+                  </div>
+                )}
                 <div className="max-w-6xl mx-auto">
                   <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
                     {settings.timeSectionTheme === 'minimal' && (
@@ -1166,11 +1430,19 @@ function App() {
                       </div>
                     )}
 
-                    {settings.timeSectionTheme === 'retro' && (
-                      <div className="inline-block p-4 rounded-lg bg-black/40 border-2 border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.2)] mb-4">
-                        <h2 className="text-6xl font-mono text-green-500 tracking-widest uppercase">
-                          {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    {settings.timeSectionTheme === 'cyber-neon' && (
+                      <div className="relative group cursor-default inline-block px-8 py-6 rounded-2xl bg-black/60 border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.2)] overflow-hidden">
+                        <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-pulse" />
+                        <div className="absolute inset-y-0 left-0 w-[1px] bg-gradient-to-b from-transparent via-purple-500 to-transparent" />
+                        <div className="absolute inset-y-0 right-0 w-[1px] bg-gradient-to-b from-transparent via-purple-500 to-transparent" />
+                        <h2 className="text-7xl font-mono text-transparent bg-clip-text bg-gradient-to-b from-cyan-300 via-purple-400 to-purple-600 tracking-tighter filter drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">
+                          {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </h2>
+                        <div className="mt-2 flex items-center justify-center gap-2">
+                           <div className="h-[2px] w-4 bg-cyan-500" />
+                           <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-[0.3em]">System Active</span>
+                           <div className="h-[2px] w-4 bg-cyan-500" />
+                        </div>
                       </div>
                     )}
 
@@ -1345,10 +1617,58 @@ function App() {
                   profession={profession}
                   history={history}
                   onNavigate={(url) => { setShowDashboardPopup(false); handleNavigate(url); }}
+                  schedules={schedules}
+                  onAddSchedule={handleAddSchedule}
+                  onRemoveSchedule={handleRemoveSchedule}
                 />
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+      {/* Global Notification Toast */}
+      <AnimatePresence>
+        {activeNotifications.length > 0 && (
+          <motion.div 
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            className="fixed bottom-6 right-6 z-[200] w-80 p-5 rounded-3xl bg-gray-900 border border-purple-500/50 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+          >
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-purple-500/20 blur-3xl rounded-full pointer-events-none" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
+                  <Bell className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Upcoming Task</h4>
+                  <p className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">In 5 Minutes</p>
+                </div>
+                <button 
+                  onClick={() => setActiveNotifications(prev => prev.slice(1))}
+                  className="ml-auto p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-white">{activeNotifications[0].title}</span>
+                  <span className="text-xs font-mono text-gray-500">{activeNotifications[0].time}</span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed italic">"{activeNotifications[0].description}"</p>
+              </div>
+              
+              <button 
+                onClick={() => setActiveNotifications(prev => prev.slice(1))}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold shadow-lg shadow-purple-900/20 active:scale-95 transition-transform"
+              >
+                Dismiss Notification
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

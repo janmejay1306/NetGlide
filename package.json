@@ -1,5 +1,1 @@
-{
-  ...
-  "cmdk": "^0.3.0",
-  ...
-}
+{\n  "name": "netglide",\n  "version": "1.0.0",\n  "description": "A project for demonstrating net glide functionality",\n  "main": "index.js",\n  "scripts": {\n    "test": "echo \"Error: no test specified\" && exit 1"\n  },\n  "dependencies": {\n    "cmdk": "^1.0.0" // Ensure to specify the appropriate version if necessary\n  },\n  "devDependencies": {},\n  "author": "Your Name",\n  "license": "ISC"\n}

@@ -90,11 +90,17 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 function App() {
+  const [isMac, setIsMac] = useState(false);
   const [showProfessionPrompt, setShowProfessionPrompt] = useState(false);
   const [profession, setProfession] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [greeting, setGreeting] = useState('');
+
+  // Detect platform on mount
+  useEffect(() => {
+    setIsMac(navigator.userAgent.toLowerCase().includes('mac'));
+  }, []);
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([
     {
@@ -513,7 +519,9 @@ function App() {
         {/* Top Navigation - Ultra Dark Glass */}
         <div className="glass-panel border-b border-white/[0.04] shrink-0">
           {/* Tabs Row */}
-          <div className="flex items-center gap-1 px-3 pt-2 pb-1 overflow-x-auto custom-scrollbar">
+          <div 
+            className={`flex items-center gap-1 px-3 pt-2 pb-1 overflow-x-auto custom-scrollbar ${isMac ? 'pl-20' : ''}`}
+          >
             <AnimatePresence>
               {currentWorkspace.tabs.map((tab) => (
                 <BrowserTab
@@ -521,6 +529,7 @@ function App() {
                   tab={tab}
                   onClose={handleCloseTab}
                   onClick={handleTabClick}
+                  isMac={isMac}
                 />
               ))}
             </AnimatePresence>
@@ -529,7 +538,7 @@ function App() {
               whileHover={{ scale: 1.1, rotate: 90 }}
               whileTap={{ scale: 0.9 }}
               className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/[0.06] transition-all shrink-0 ml-1"
-              title="New Tab (Ctrl+T)"
+              title={`New Tab (${isMac ? '⌘T' : 'Ctrl+T'})`}
             >
               <Plus className="w-4 h-4" />
             </motion.button>

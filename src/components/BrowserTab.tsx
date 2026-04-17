@@ -12,9 +12,10 @@ interface BrowserTabProps {
   onClose: (id: string) => void;
   onClick: (id: string) => void;
   isCompact?: boolean;
+  isMac?: boolean;
 }
 
-export function BrowserTab({ tab, onClose, onClick, isCompact }: BrowserTabProps) {
+export function BrowserTab({ tab, onClose, onClick, isCompact, isMac }: BrowserTabProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   // Extract favicon domain if URL exists
@@ -113,7 +114,7 @@ export function BrowserTab({ tab, onClose, onClick, isCompact }: BrowserTabProps
         }`}
         whileHover={{ scale: 1.15 }}
         whileTap={{ scale: 0.85 }}
-        title="Close Tab (Ctrl+W)"
+        title={`Close Tab (${isMac ? '⌘W' : 'Ctrl+W'})`}
       >
         <X className="w-3 h-3" />
       </motion.button>

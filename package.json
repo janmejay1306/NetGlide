@@ -1,1 +1,5 @@
-{"name": "netglide", "version": "1.0.0", "dependencies": {"cmdk": "^0.3.0"}}
+{
+  ...
+  "cmdk": "^0.3.0",
+  ...
+}

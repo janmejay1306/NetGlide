@@ -11,7 +11,7 @@
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "clean": "rimraf dist",
     "electron:build": "npm run clean && npm run build && electron-builder",
-    "electron:build:mac": "npm run clean && npm run build && electron-builder --mac",
+    "electron:build:mac": "npm run clean && npm run build && electron-builder --mac --publish always",
     "start": "electron ."
   },
   "devDependencies": {
@@ -51,12 +51,14 @@
     },
     "mac": {
       "target": [
-        "dmg",
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
         "zip"
-      ],
-      "arch": [
-        "x64",
-        "arm64"
       ],
       "category": "public.app-category.productivity"
     },

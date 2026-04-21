@@ -147,6 +147,9 @@ function createWindow() {
 // App lifecycle
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.netglide.app');
+  }
   createMenu();
   createWindow();
   setupAutoUpdater();

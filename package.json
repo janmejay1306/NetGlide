@@ -10,7 +10,7 @@
     "build": "vite build",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "clean": "rimraf dist",
-    "electron:build": "npm run clean && npm run build && electron-builder",
+    "electron:build": "npm run clean && npm run build && electron-builder --publish always",
     "electron:build:mac": "npm run clean && npm run build && electron-builder --mac --publish always",
     "start": "electron ."
   },
@@ -47,7 +47,11 @@
       "repo": "NetGlide"
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "src/assets/logo.png"
     },
     "mac": {
       "target": [
@@ -63,9 +67,13 @@
       "category": "public.app-category.productivity"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "perMachine": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "NetGlide",
+      "runAfterFinish": true
     }
   },
   "dependencies": {

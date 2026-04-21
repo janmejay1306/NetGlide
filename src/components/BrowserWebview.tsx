@@ -1,19 +1,32 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 interface BrowserWebviewProps {
   tab: { id: string; url: string; isActive: boolean };
   onTitleChange: (tabId: string, title: string) => void;
+  onUrlChange: (tabId: string, url: string) => void;
   isDarkMode?: boolean;
 }
 
-export function BrowserWebview({ tab, onTitleChange, isDarkMode = false }: BrowserWebviewProps) {
+export const BrowserWebview = forwardRef<any, BrowserWebviewProps>(({ tab, onTitleChange, onUrlChange, isDarkMode = false }, ref) => {
   const webviewRef = useRef<any>(null);
   const cssKeyRef = useRef<string | null>(null);
   
+  // Expose webview methods to parent
+  useImperativeHandle(ref, () => ({
+    goBack: () => webviewRef.current?.goBack(),
+    goForward: () => webviewRef.current?.goForward(),
+    reload: () => webviewRef.current?.reload(),
+    stop: () => webviewRef.current?.stop(),
+    getWebview: () => webviewRef.current,
+  }));
+
   const onTitleChangeRef = useRef(onTitleChange);
+  const onUrlChangeRef = useRef(onUrlChange);
+  
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
-  }, [onTitleChange]);
+    onUrlChangeRef.current = onUrlChange;
+  }, [onTitleChange, onUrlChange]);
 
   useEffect(() => {
     const webview = webviewRef.current;
@@ -23,7 +36,13 @@ export function BrowserWebview({ tab, onTitleChange, isDarkMode = false }: Brows
       onTitleChangeRef.current(tab.id, e.title);
     };
 
+    const handleNavigation = (e: any) => {
+      onUrlChangeRef.current(tab.id, e.url);
+    };
+
     webview.addEventListener('page-title-updated', handlePageTitleUpdated);
+    webview.addEventListener('did-navigate', handleNavigation);
+    webview.addEventListener('did-navigate-in-page', handleNavigation);
 
     const applyDarkMode = async () => {
       if (!webview) return;
@@ -95,6 +114,8 @@ export function BrowserWebview({ tab, onTitleChange, isDarkMode = false }: Brows
 
     return () => {
       webview.removeEventListener('page-title-updated', handlePageTitleUpdated);
+      webview.removeEventListener('did-navigate', handleNavigation);
+      webview.removeEventListener('did-navigate-in-page', handleNavigation);
       webview.removeEventListener('did-finish-load', handleDidFinishLoad);
       webview.removeEventListener('dom-ready', handleDomReady);
     };
@@ -109,4 +130,6 @@ export function BrowserWebview({ tab, onTitleChange, isDarkMode = false }: Brows
       {...({ allowpopups: "true" } as any)}
     />
   );
-}
+});
+
+BrowserWebview.displayName = 'BrowserWebview';

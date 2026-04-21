@@ -232,6 +232,7 @@ function App() {
   const [googleSuggestions, setGoogleSuggestions] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const googleDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const webviewRefs = useRef<Record<string, any>>({});
   const [timeTracking, setTimeTracking] = useState<Record<string, number>>({});
   const [totalTimeToday, setTotalTimeToday] = useState(0);
 
@@ -671,43 +672,15 @@ function App() {
   };
 
   const handleBack = () => {
-    if (!activeTab || !activeTab.history || activeTab.historyIndex <= 0) return;
-    const updatedWorkspaces = workspaces.map((workspace) => {
-      if (workspace.id === currentWorkspaceId) {
-        return {
-          ...workspace,
-          tabs: workspace.tabs.map((tab) => {
-            if (tab.isActive && tab.historyIndex > 0) {
-              const newIndex = tab.historyIndex - 1;
-              return { ...tab, url: tab.history[newIndex], historyIndex: newIndex };
-            }
-            return tab;
-          }),
-        };
-      }
-      return workspace;
-    });
-    setWorkspaces(updatedWorkspaces);
+    if (activeTab && webviewRefs.current[activeTab.id]) {
+      webviewRefs.current[activeTab.id].goBack();
+    }
   };
 
   const handleForward = () => {
-    if (!activeTab || !activeTab.history || activeTab.historyIndex >= activeTab.history.length - 1) return;
-    const updatedWorkspaces = workspaces.map((workspace) => {
-      if (workspace.id === currentWorkspaceId) {
-        return {
-          ...workspace,
-          tabs: workspace.tabs.map((tab) => {
-            if (tab.isActive && tab.historyIndex < tab.history.length - 1) {
-              const newIndex = tab.historyIndex + 1;
-              return { ...tab, url: tab.history[newIndex], historyIndex: newIndex };
-            }
-            return tab;
-          }),
-        };
-      }
-      return workspace;
-    });
-    setWorkspaces(updatedWorkspaces);
+    if (activeTab && webviewRefs.current[activeTab.id]) {
+      webviewRefs.current[activeTab.id].goForward();
+    }
   };
 
   // ── Resolve homepage setting to a URL ───────────────────────
@@ -827,6 +800,49 @@ function App() {
     setWorkspaces(updatedWorkspaces);
   };
 
+  const handleTabUrlChange = (tabId: string, url: string) => {
+    const updatedWorkspaces = workspaces.map((workspace) => {
+      if (workspace.id === currentWorkspaceId) {
+        return {
+          ...workspace,
+          tabs: workspace.tabs.map((tab) => {
+            if (tab.id === tabId && tab.url !== url) {
+              // Update history tracking if needed, but for now just sync the URL
+              const newHistory = tab.history.slice(0, tab.historyIndex + 1);
+              if (newHistory[newHistory.length - 1] !== url) {
+                newHistory.push(url);
+              }
+              return { 
+                ...tab, 
+                url, 
+                history: newHistory, 
+                historyIndex: newHistory.length - 1 
+              };
+            }
+            return tab;
+          })
+        };
+      }
+      return workspace;
+    });
+    setWorkspaces(updatedWorkspaces);
+
+    // Also update general history
+    try {
+      const historyItem: HistoryItem = {
+        id: Date.now().toString(),
+        url: url,
+        title: new URL(url).hostname,
+        visitedAt: Date.now(),
+      };
+      setHistory((prev) => {
+        // Simple de-dupe for consecutive same URLs in history
+        if (prev.length > 0 && prev[prev.length - 1].url === url) return prev;
+        return [...prev, historyItem];
+      });
+    } catch (e) {}
+  };
+
   const handleCreateWorkspace = (name: string) => {
     const newWorkspace: Workspace = {
       id: Date.now().toString(),
@@ -922,11 +938,8 @@ function App() {
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button onClick={() => {
-                if (activeTab?.url) {
-                  // Reload current page by re-navigating to same URL
-                  const url = activeTab.url;
-                  handleHome();
-                  setTimeout(() => handleNavigate(url), 50);
+                if (activeTab && webviewRefs.current[activeTab.id]) {
+                  webviewRefs.current[activeTab.id].reload();
                 } else {
                   // On home page, just reload the app
                   window.location.reload();
@@ -1467,8 +1480,10 @@ function App() {
                   tab.url && (
                     <BrowserWebview
                       key={tab.id}
+                      ref={(el: any) => { if (el) webviewRefs.current[tab.id] = el; }}
                       tab={tab}
                       onTitleChange={handleTabTitleChange}
+                      onUrlChange={handleTabUrlChange}
                       isDarkMode={settings.isDarkMode}
                     />
                   )

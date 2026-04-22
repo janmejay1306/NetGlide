@@ -61,10 +61,11 @@
             "x64",
             "arm64"
           ]
-        },
-        "zip"
+        }
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "src/assets/logo.png",
+      "artifactName": "NetGlide-${version}-${arch}.dmg"
     },
     "nsis": {
       "oneClick": true,

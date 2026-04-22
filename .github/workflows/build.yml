@@ -13,8 +13,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
 
     steps:
       - name: Checkout Code
@@ -29,7 +34,19 @@ jobs:
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build and Release
+      - name: Build Vite App
+        run: npm run build
+
+      - name: Package & Publish (Windows)
+        if: matrix.platform == 'win'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run electron:build
+        run: npx electron-builder --win --publish always
+
+      - name: Package & Publish (macOS)
+        if: matrix.platform == 'mac'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Mac code-signing is skipped (no Apple Developer cert); DMG will still be created
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --mac --publish always

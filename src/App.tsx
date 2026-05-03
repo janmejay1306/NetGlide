@@ -892,7 +892,7 @@ function App() {
   const handleCloseSettings = useCallback(() => setShowSettings(false), []);
 
   return (
-    <div className="h-screen w-full overflow-hidden text-white relative">
+    <div className="h-[100dvh] w-full overflow-hidden text-white relative">
       {settings.showParticles !== false && <ParticleBackground themeId={settings.theme} />}
       {showProfessionPrompt && <ProfessionPrompt onSelect={handleProfessionSelect} />}
 
@@ -927,10 +927,10 @@ function App() {
           </div>
 
           {/* Tier 2: Navigation & Actions */}
-          <div className="w-full h-14 px-4 flex items-center gap-4">
+          <div className="w-full h-14 px-2 md:px-4 flex items-center gap-1 md:gap-4">
             
-            {/* Nav Controls */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Nav Controls - Hidden on small mobile to save space */}
+            <div className="hidden sm:flex items-center gap-1 shrink-0">
               <button onClick={handleBack} disabled={!activeTab || !activeTab.history || activeTab.historyIndex <= 0} className={`p-2 rounded-lg transition-colors ${!activeTab || !activeTab.history || activeTab.historyIndex <= 0 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:text-white hover:bg-white/10'}`}>
                 <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1220,7 +1220,7 @@ function App() {
             </div>
 
             {/* Actions: History, Bookmarks, Profile, Dashboard | Workspaces, Night Mode, Settings */}
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 md:gap-1 shrink-0 ml-auto">
               <div className="relative">
                 <Button 
                   onClick={() => {
@@ -1413,7 +1413,7 @@ function App() {
                 <div className="max-w-6xl mx-auto">
                   <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
                     {settings.timeSectionTheme === 'minimal' && (
-                      <h2 className="text-7xl font-light tracking-tighter text-white/90 mb-2">
+                      <h2 className="text-4xl sm:text-6xl md:text-7xl font-light tracking-tighter text-white/90 mb-2">
                         {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </h2>
                     )}
@@ -1422,7 +1422,7 @@ function App() {
                       <div className="flex flex-col items-center gap-2 mb-4">
                         <div className="flex items-center justify-center gap-3 relative">
                           <div className="absolute inset-0 bg-purple-500/20 blur-3xl rounded-full scale-150" />
-                          <h2 className="text-7xl font-black tracking-tight bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent drop-shadow-2xl relative z-10">
+                          <h2 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent drop-shadow-2xl relative z-10">
                             {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </h2>
                         </div>
@@ -1433,12 +1433,12 @@ function App() {
                       <div className="flex items-center justify-center gap-4 mb-6">
                         <div className="px-6 py-4 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl relative group overflow-hidden">
                            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                           <span className="text-6xl font-black text-white">{currentTime.getHours().toString().padStart(2, '0')}</span>
+                           <span className="text-4xl sm:text-6xl font-black text-white">{currentTime.getHours().toString().padStart(2, '0')}</span>
                         </div>
                         <div className="text-4xl font-bold text-gray-500 animate-pulse">:</div>
                         <div className="px-6 py-4 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl relative group overflow-hidden">
                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                           <span className="text-6xl font-black text-white">{currentTime.getMinutes().toString().padStart(2, '0')}</span>
+                           <span className="text-4xl sm:text-6xl font-black text-white">{currentTime.getMinutes().toString().padStart(2, '0')}</span>
                         </div>
                       </div>
                     )}
@@ -1448,7 +1448,7 @@ function App() {
                         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-pulse" />
                         <div className="absolute inset-y-0 left-0 w-[1px] bg-gradient-to-b from-transparent via-purple-500 to-transparent" />
                         <div className="absolute inset-y-0 right-0 w-[1px] bg-gradient-to-b from-transparent via-purple-500 to-transparent" />
-                        <h2 className="text-7xl font-mono text-transparent bg-clip-text bg-gradient-to-b from-cyan-300 via-purple-400 to-purple-600 tracking-tighter filter drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">
+                        <h2 className="text-4xl sm:text-6xl md:text-7xl font-mono text-transparent bg-clip-text bg-gradient-to-b from-cyan-300 via-purple-400 to-purple-600 tracking-tighter filter drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]">
                           {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </h2>
                         <div className="mt-2 flex items-center justify-center gap-2">
@@ -1459,7 +1459,7 @@ function App() {
                       </div>
                     )}
 
-                    <p className="text-2xl text-gray-300 font-medium tracking-tight">{greeting}</p>
+                    <p className="text-xl md:text-2xl text-gray-300 font-medium tracking-tight">{greeting}</p>
                     {profession && <p className="text-sm text-gray-400 mt-2">Personalized for: <span className="text-purple-400 font-semibold capitalize">{profession}</span></p>}
                   </motion.div>
 

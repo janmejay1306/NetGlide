@@ -10,13 +10,15 @@ interface BrowserWebviewProps {
 export const BrowserWebview = forwardRef<any, BrowserWebviewProps>(({ tab, onTitleChange, onUrlChange, isDarkMode = false }, ref) => {
   const webviewRef = useRef<any>(null);
   const cssKeyRef = useRef<string | null>(null);
-  
+  const isElectron = typeof window !== 'undefined' && window.process && (window.process as any).type === 'renderer' || 
+                    (typeof navigator === 'object' && navigator.userAgent.toLowerCase().includes('electron'));
+
   // Expose webview methods to parent
   useImperativeHandle(ref, () => ({
-    goBack: () => webviewRef.current?.goBack(),
-    goForward: () => webviewRef.current?.goForward(),
-    reload: () => webviewRef.current?.reload(),
-    stop: () => webviewRef.current?.stop(),
+    goBack: () => isElectron ? webviewRef.current?.goBack() : window.history.back(),
+    goForward: () => isElectron ? webviewRef.current?.goForward() : window.history.forward(),
+    reload: () => isElectron ? webviewRef.current?.reload() : (webviewRef.current as HTMLIFrameElement)?.contentWindow?.location.reload(),
+    stop: () => isElectron ? webviewRef.current?.stop() : null,
     getWebview: () => webviewRef.current,
   }));
 
@@ -29,6 +31,8 @@ export const BrowserWebview = forwardRef<any, BrowserWebviewProps>(({ tab, onTit
   }, [onTitleChange, onUrlChange]);
 
   useEffect(() => {
+    if (!isElectron) return;
+
     const webview = webviewRef.current;
     if (!webview) return;
 
@@ -119,7 +123,26 @@ export const BrowserWebview = forwardRef<any, BrowserWebviewProps>(({ tab, onTit
       webview.removeEventListener('did-finish-load', handleDidFinishLoad);
       webview.removeEventListener('dom-ready', handleDomReady);
     };
-  }, [tab.id, isDarkMode]);
+  }, [tab.id, isDarkMode, isElectron]);
+
+  if (!isElectron) {
+    return (
+      <iframe
+        ref={webviewRef}
+        src={tab.url}
+        className={`absolute top-0 left-0 ${tab.isActive ? 'block' : 'hidden'}`}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          display: tab.isActive ? 'flex' : 'none',
+          border: 'none',
+          backgroundColor: '#fff'
+        }}
+        sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+        title={tab.title}
+      />
+    );
+  }
 
   return (
     <webview

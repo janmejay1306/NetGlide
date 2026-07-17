@@ -65,6 +65,7 @@
       "artifactName": "NetGlide-${version}-${arch}.dmg"
     },
     "nsis": {
+      "artifactName": "NetGlide-Setup.exe",
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,
       "perMachine": true,

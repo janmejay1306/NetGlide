@@ -1,7 +1,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 interface BrowserWebviewProps {
-  tab: { id: string; url: string; isActive: boolean };
+  tab: { id: string; url: string; isActive: boolean; title?: string };
   onTitleChange: (tabId: string, title: string) => void;
   onUrlChange: (tabId: string, url: string) => void;
   isDarkMode?: boolean;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, type MutableRefObject } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -17,13 +17,9 @@ import {
   RefreshCw,
   Timer,
   X,
-  Trash2,
-  ExternalLink,
-  Calendar,
-  Shield,
-  HelpCircle,
-  LogOut,
-  UserCircle2,
+  FolderOpen,
+  CheckCircle2,
+  AlertCircle,
   Bell,
   Download,
 } from 'lucide-react';
@@ -42,6 +38,7 @@ import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { getTheme, applyTheme } from './components/utils/themes';
 import { PersonalizedDashboard } from './components/PersonalizedDashboard';
+import { SearchResultsView } from './components/SearchResultsView';
 import logo from './assets/logo.png';
 
 interface Tab {
@@ -51,6 +48,8 @@ interface Tab {
   isActive: boolean;
   history: string[];
   historyIndex: number;
+  /** When set, this tab is showing native search results instead of a webview */
+  searchQuery?: string;
 }
 
 interface Workspace {
@@ -104,6 +103,7 @@ interface AppSettings {
   maxTabsPerRow: number;
   fontFamily: string;
   timeSectionTheme: string;
+  downloadPath: string;
 }
 
 export interface DownloadItem {
@@ -156,6 +156,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   maxTabsPerRow: 6,
   fontFamily: 'Inter',
   timeSectionTheme: 'modern-glow',
+  downloadPath: '',
 };
 
 // ── Google Autocomplete via JSONP ─────────────────────────────
@@ -464,6 +465,55 @@ function App() {
     setSchedules(prev => prev.filter(s => s.id !== id));
   }, []);
 
+  // ── Real Electron Download Tracking ──────────────────────────
+  useEffect(() => {
+    const isElectronEnv = typeof window !== 'undefined' && (window as any).require;
+    if (!isElectronEnv) return;
+    const { ipcRenderer } = (window as any).require('electron');
+
+    const onStarted = (_event: any, data: { id: string; name: string; totalSize: string; savePath: string }) => {
+      const ext = data.name.split('.').pop()?.toLowerCase() || '';
+      const iconMap: Record<string, string> = {
+        zip: '🗜️', gz: '🗜️', tar: '🗜️', rar: '🗜️',
+        pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', ppt: '📊',
+        mp4: '🎬', mkv: '🎬', avi: '🎬', mov: '🎬',
+        mp3: '🎵', wav: '🎵', flac: '🎵',
+        png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️',
+        exe: '⚙️', msi: '⚙️', dmg: '⚙️', pkg: '⚙️',
+        js: '📦', ts: '📦', json: '📦',
+      };
+      const newDownload: DownloadItem = {
+        id: data.id,
+        name: data.name,
+        progress: 0,
+        speed: '...',
+        totalSize: data.totalSize,
+        status: 'downloading',
+        icon: iconMap[ext] || '📁',
+        startTime: Date.now(),
+      };
+      setDownloads(prev => [newDownload, ...prev]);
+      setShowDownloads(true);
+    };
+
+    const onProgress = (_event: any, data: { id: string; progress: number; speed: string }) => {
+      setDownloads(prev => prev.map(d => d.id === data.id ? { ...d, progress: data.progress, speed: data.speed } : d));
+    };
+
+    const onDone = (_event: any, data: { id: string; status: 'completed' | 'failed'; savePath: string }) => {
+      setDownloads(prev => prev.map(d => d.id === data.id ? { ...d, status: data.status, progress: 100 } : d));
+    };
+
+    ipcRenderer.on('download-started', onStarted);
+    ipcRenderer.on('download-progress', onProgress);
+    ipcRenderer.on('download-done', onDone);
+    return () => {
+      ipcRenderer.removeListener('download-started', onStarted);
+      ipcRenderer.removeListener('download-progress', onProgress);
+      ipcRenderer.removeListener('download-done', onDone);
+    };
+  }, []);
+
   // ── Time Tracking ────────────────────────────────────────────
   useEffect(() => {
     // Load today's tracking data
@@ -572,7 +622,7 @@ function App() {
             if (tab.isActive) {
               const newHistory = tab.history.slice(0, tab.historyIndex + 1);
               newHistory.push(finalUrl);
-              return { ...tab, url: finalUrl, title: 'Loading...', history: newHistory, historyIndex: newHistory.length - 1 };
+              return { ...tab, url: finalUrl, title: 'Loading...', searchQuery: undefined, history: newHistory, historyIndex: newHistory.length - 1 };
             }
             return tab;
           }),
@@ -596,30 +646,53 @@ function App() {
   };
 
   // ── Execute a search query (used by handleSearch + suggestion clicks) ──
+  // Instead of navigating to the search engine page directly, we now show
+  // a native search results view inside NetGlide for text queries.
   const executeSearch = useCallback((query: string) => {
     if (!query.trim()) return;
     addRecentSearch(query);
     let url = query;
+
+    // If it's a full URL, navigate directly
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      // Full URL
-    } else if (url.includes('.') && !url.includes(' ')) {
-      url = 'https://' + url;
-    } else {
-      const engines: Record<string, string> = {
-        google: 'https://www.google.com/search?q=',
-        duckduckgo: 'https://duckduckgo.com/?q=',
-        bing: 'https://www.bing.com/search?q=',
-        brave: 'https://search.brave.com/search?q=',
-        yahoo: 'https://search.yahoo.com/search?p=',
-        opera: 'https://search.yahoo.com/search?p=',
-        ecosia: 'https://www.ecosia.org/search?q=',
-        startpage: 'https://www.startpage.com/do/search?q=',
-        yandex: 'https://yandex.com/search/?text=',
-      };
-      url = (engines[settings.searchEngine] || engines.google) + encodeURIComponent(query);
+      handleNavigate(url);
+      return;
     }
-    handleNavigate(url);
-  }, [settings.searchEngine, addRecentSearch]);
+    // If it looks like a domain (contains dot, no spaces), navigate directly
+    if (url.includes('.') && !url.includes(' ')) {
+      handleNavigate('https://' + url);
+      return;
+    }
+
+    // ── Text query → show native search results view ──
+    // We set the tab's searchQuery field instead of loading a webview URL.
+    // This keeps the search entirely inside NetGlide.
+    const searchUrl = `netglide://search?q=${encodeURIComponent(query)}`;
+    const updatedWorkspaces = workspaces.map((workspace) => {
+      if (workspace.id === currentWorkspaceId) {
+        return {
+          ...workspace,
+          tabs: workspace.tabs.map((tab) => {
+            if (tab.isActive) {
+              const newHistory = tab.history.slice(0, tab.historyIndex + 1);
+              newHistory.push(searchUrl);
+              return {
+                ...tab,
+                url: '',  // Clear URL so webview doesn't render
+                title: `Search: ${query}`,
+                searchQuery: query,
+                history: newHistory,
+                historyIndex: newHistory.length - 1,
+              };
+            }
+            return tab;
+          }),
+        };
+      }
+      return workspace;
+    });
+    setWorkspaces(updatedWorkspaces);
+  }, [settings.searchEngine, addRecentSearch, workspaces, currentWorkspaceId]);
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const total = allSuggestions.length;
@@ -672,14 +745,56 @@ function App() {
   };
 
   const handleBack = () => {
-    if (activeTab && webviewRefs.current[activeTab.id]) {
-      webviewRefs.current[activeTab.id].goBack();
+    if (!activeTab) return;
+    if (activeTab.historyIndex > 0) {
+      const newIndex = activeTab.historyIndex - 1;
+      const newUrl = activeTab.history[newIndex];
+      const updatedWorkspaces = workspaces.map((w) => {
+        if (w.id === currentWorkspaceId) {
+          return {
+            ...w,
+            tabs: w.tabs.map((t) => {
+              if (t.id === activeTab.id) {
+                if (newUrl.startsWith('netglide://search?q=')) {
+                  const q = decodeURIComponent(newUrl.slice('netglide://search?q='.length));
+                  return { ...t, url: '', searchQuery: q, historyIndex: newIndex };
+                }
+                return { ...t, url: newUrl, searchQuery: undefined, historyIndex: newIndex };
+              }
+              return t;
+            }),
+          };
+        }
+        return w;
+      });
+      setWorkspaces(updatedWorkspaces);
     }
   };
 
   const handleForward = () => {
-    if (activeTab && webviewRefs.current[activeTab.id]) {
-      webviewRefs.current[activeTab.id].goForward();
+    if (!activeTab) return;
+    if (activeTab.historyIndex < activeTab.history.length - 1) {
+      const newIndex = activeTab.historyIndex + 1;
+      const newUrl = activeTab.history[newIndex];
+      const updatedWorkspaces = workspaces.map((w) => {
+        if (w.id === currentWorkspaceId) {
+          return {
+            ...w,
+            tabs: w.tabs.map((t) => {
+              if (t.id === activeTab.id) {
+                if (newUrl.startsWith('netglide://search?q=')) {
+                  const q = decodeURIComponent(newUrl.slice('netglide://search?q='.length));
+                  return { ...t, url: '', searchQuery: q, historyIndex: newIndex };
+                }
+                return { ...t, url: newUrl, searchQuery: undefined, historyIndex: newIndex };
+              }
+              return t;
+            }),
+          };
+        }
+        return w;
+      });
+      setWorkspaces(updatedWorkspaces);
     }
   };
 
@@ -719,9 +834,9 @@ function App() {
           tabs: workspace.tabs.map((tab) => {
             if (tab.isActive) {
               if (homepage.url && homepage.url !== 'about:blank') {
-                return { ...tab, url: homepage.url, title: homepage.title, history: [homepage.url], historyIndex: 0 };
+                return { ...tab, url: homepage.url, title: homepage.title, searchQuery: undefined, history: [homepage.url], historyIndex: 0 };
               }
-              return { ...tab, url: '', title: 'New Tab', history: [], historyIndex: -1 };
+              return { ...tab, url: '', title: 'New Tab', searchQuery: undefined, history: [], historyIndex: -1 };
             }
             return tab;
           }),
@@ -888,7 +1003,8 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, workspaces, currentWorkspaceId]);
 
-  const showHomePage = !activeTab?.url;
+  const showSearchResults = !!activeTab?.searchQuery && !activeTab?.url;
+  const showHomePage = !activeTab?.url && !showSearchResults;
   const handleCloseSettings = useCallback(() => setShowSettings(false), []);
 
   return (
@@ -967,15 +1083,15 @@ function App() {
                   onKeyDown={handleSearch}
                   onFocus={(e) => {
                     setShowSuggestions(true);
-                    if (activeTab?.url && !searchQuery) {
-                      setSearchQuery(activeTab.url);
+                    if (!searchQuery) {
+                      setSearchQuery(activeTab?.searchQuery || activeTab?.url || '');
                     }
                     e.currentTarget.select();
                   }}
                   onBlur={() => { 
                     setTimeout(() => setShowSuggestions(false), 200); 
                   }}
-                  placeholder={activeTab?.url ? activeTab.url : "Search or enter URL..."}
+                  placeholder={activeTab?.searchQuery ? activeTab.searchQuery : (activeTab?.url ? activeTab.url : "Search or enter URL...")}
                   className="flex-1 border-0 bg-transparent text-white placeholder:text-gray-500 shadow-none focus-visible:ring-0 h-full text-sm font-medium px-3 leading-loose"
                   autoComplete="off"
                 />
@@ -1274,33 +1390,7 @@ function App() {
 
               <div className="relative">
                 <Button 
-                  onClick={() => {
-                    setShowDownloads(!showDownloads);
-                    // Demo: add a download if list is empty
-                    if (downloads.length === 0) {
-                      const demo: DownloadItem = {
-                        id: 'demo-1',
-                        name: 'NetGlide_Beta_Update.zip',
-                        progress: 0,
-                        speed: '2.4 MB/s',
-                        totalSize: '245 MB',
-                        status: 'downloading',
-                        icon: '📦',
-                        startTime: Date.now()
-                      };
-                      setDownloads([demo]);
-                      const iv = setInterval(() => {
-                        setDownloads(prev => {
-                          const item = prev[0];
-                          if (!item || item.progress >= 100) {
-                            clearInterval(iv);
-                            return prev.map(p => p.id === 'demo-1' ? { ...p, status: 'completed', progress: 100 } : p);
-                          }
-                          return prev.map(p => p.id === 'demo-1' ? { ...p, progress: Math.min(100, item.progress + 1.5), speed: (2.0 + Math.random() * 0.8).toFixed(1) + ' MB/s' } : p);
-                        });
-                      }, 500);
-                    }
-                  }} 
+                  onClick={() => setShowDownloads(!showDownloads)} 
                   variant="ghost" size="icon" 
                   className={`text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9 relative ${showDownloads ? 'bg-white/10 text-white' : ''}`} 
                   title="Downloads"
@@ -1326,6 +1416,9 @@ function App() {
                       />
                     </svg>
                   )}
+                  {downloads.filter(d => d.status === 'completed').length > 0 && !downloads.some(d => d.status === 'downloading') && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-gray-900" />
+                  )}
                 </Button>
 
                 <AnimatePresence>
@@ -1338,27 +1431,63 @@ function App() {
                     >
                       <div className="p-4 border-b border-white/5 flex items-center justify-between">
                         <h4 className="text-sm font-semibold text-white">Downloads</h4>
-                        <button onClick={() => setDownloads([])} className="text-[10px] text-gray-500 hover:text-white transition-colors">Clear all</button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              const isElectronEnv = typeof window !== 'undefined' && (window as any).require;
+                              if (isElectronEnv) {
+                                const { ipcRenderer } = (window as any).require('electron');
+                                ipcRenderer.send('open-download-folder');
+                              } else {
+                                // In browser dev mode, Electron IPC is unavailable
+                                console.info('[NetGlide] Open Folder requires the Electron app (npm run electron:dev)');
+                              }
+                            }}
+                            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-purple-400 transition-colors"
+                            title="Open downloads folder"
+                          >
+                            <FolderOpen className="w-3 h-3" />
+                            Open Folder
+                          </button>
+                          <span className="text-gray-700">·</span>
+                          <button onClick={() => setDownloads([])} className="text-[10px] text-gray-500 hover:text-white transition-colors">Clear all</button>
+                        </div>
                       </div>
                       <div className="max-h-80 overflow-y-auto p-2 space-y-1">
                         {downloads.length === 0 ? (
-                          <div className="py-10 text-center text-gray-500 text-xs">No downloads yet</div>
+                          <div className="py-10 text-center">
+                            <Download className="w-8 h-8 text-gray-700 mx-auto mb-2" />
+                            <p className="text-gray-500 text-xs">No downloads yet</p>
+                            <p className="text-gray-600 text-[10px] mt-1">Files you download will appear here</p>
+                          </div>
                         ) : (
                           downloads.map(d => (
-                            <div key={d.id} className="p-3 rounded-xl bg-white/5 border border-white/5">
+                            <div key={d.id} className="p-3 rounded-xl bg-white/5 border border-white/5 group">
                               <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 rounded-lg bg-white/5 text-lg">{d.icon}</div>
+                                <div className="p-2 rounded-lg bg-white/5 text-lg shrink-0">{d.icon}</div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-white truncate">{d.name}</p>
                                   <div className="flex items-center justify-between mt-0.5">
                                     <span className="text-[10px] text-gray-500">{d.totalSize}</span>
-                                    <span className="text-[10px] font-mono text-purple-400">{d.status === 'downloading' ? d.speed : 'Completed'}</span>
+                                    {d.status === 'downloading' && (
+                                      <span className="text-[10px] font-mono text-purple-400">{d.speed} · {d.progress}%</span>
+                                    )}
+                                    {d.status === 'completed' && (
+                                      <span className="flex items-center gap-1 text-[10px] text-green-400">
+                                        <CheckCircle2 className="w-3 h-3" /> Done
+                                      </span>
+                                    )}
+                                    {d.status === 'failed' && (
+                                      <span className="flex items-center gap-1 text-[10px] text-red-400">
+                                        <AlertCircle className="w-3 h-3" /> Failed
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
                               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden relative">
                                 <motion.div 
-                                  className={`h-full bg-gradient-to-r from-purple-500 to-blue-500`}
+                                  className={`h-full bg-gradient-to-r ${d.status === 'failed' ? 'from-red-500 to-red-600' : d.status === 'completed' ? 'from-green-500 to-emerald-500' : 'from-purple-500 to-blue-500'}`}
                                   initial={{ width: 0 }}
                                   animate={{ width: `${d.progress}%` }}
                                 />
@@ -1371,6 +1500,7 @@ function App() {
                   )}
                 </AnimatePresence>
               </div>
+
               <Button onClick={() => setShowDashboardPopup(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="Dashboard"><Timer className="w-4 h-4" /></Button>
               <div className="w-px h-5 bg-white/10 mx-1" />
               <Button onClick={() => setShowWorkspaces(true)} variant="ghost" size="icon" className="text-gray-400 hover:text-white hover:bg-white/10 rounded-full w-9 h-9" title="Workspaces"><Layers className="w-4 h-4" /></Button>
@@ -1474,6 +1604,61 @@ function App() {
                   />
                 </div>
               </div>
+            ) : showSearchResults ? (
+              /* ── Native Search Results View ─────────────── */
+              <SearchResultsView
+                query={activeTab?.searchQuery || ''}
+                searchEngine={settings.searchEngine}
+                isActive={true}
+                onNavigate={(url) => {
+                  // When user clicks a result, clear searchQuery and navigate
+                  const updatedWorkspaces = workspaces.map((workspace) => {
+                    if (workspace.id === currentWorkspaceId) {
+                      return {
+                        ...workspace,
+                        tabs: workspace.tabs.map((tab) => {
+                          if (tab.isActive) {
+                            return { ...tab, searchQuery: undefined };
+                          }
+                          return tab;
+                        }),
+                      };
+                    }
+                    return workspace;
+                  });
+                  setWorkspaces(updatedWorkspaces);
+                  // Small delay to let state clear before navigating
+                  setTimeout(() => handleNavigate(url), 0);
+                }}
+                onNewSearch={(newQuery) => {
+                  addRecentSearch(newQuery);
+                  const searchUrl = `netglide://search?q=${encodeURIComponent(newQuery)}`;
+                  const updatedWorkspaces = workspaces.map((workspace) => {
+                    if (workspace.id === currentWorkspaceId) {
+                      return {
+                        ...workspace,
+                        tabs: workspace.tabs.map((tab) => {
+                          if (tab.isActive) {
+                            const newHistory = tab.history.slice(0, tab.historyIndex + 1);
+                            newHistory.push(searchUrl);
+                            return {
+                              ...tab,
+                              url: '',
+                              title: `Search: ${newQuery}`,
+                              searchQuery: newQuery,
+                              history: newHistory,
+                              historyIndex: newHistory.length - 1,
+                            };
+                          }
+                          return tab;
+                        }),
+                      };
+                    }
+                    return workspace;
+                  });
+                  setWorkspaces(updatedWorkspaces);
+                }}
+              />
             ) : (
               <div className="h-full w-full bg-[#111] relative" id="webview-container">
                 {currentWorkspace.tabs.map((tab) => (

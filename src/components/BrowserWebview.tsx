@@ -11,7 +11,7 @@ export const BrowserWebview = forwardRef<any, BrowserWebviewProps>(({ tab, onTit
   const webviewRef = useRef<any>(null);
   const cssKeyRef = useRef<string | null>(null);
   const isElectron = typeof window !== 'undefined' && window.process && (window.process as any).type === 'renderer' || 
-                    (typeof navigator === 'object' && navigator.userAgent.toLowerCase().includes('electron'));
+                    (typeof navigator === 'object' && String(navigator.userAgent ?? '').toLowerCase().includes('electron'));
 
   // Expose webview methods to parent
   useImperativeHandle(ref, () => ({

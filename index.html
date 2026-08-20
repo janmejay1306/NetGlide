@@ -7,16 +7,19 @@
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       <link rel="manifest" href="/manifest.json" />
-      <link rel="apple-touch-icon" href="/logo.png" />
+      <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+      <link rel="shortcut icon" type="image/jpeg" href="/logo.jpg" />
+      <link rel="apple-touch-icon" href="/logo.jpg" />
       <title>NetGlide</title>
     </head>
     <body>
       <div id="root"></div>
       <script type="module" src="/src/main.tsx"></script>
       <script>
-        if ('serviceWorker' in navigator) {
+        const isElectron = String(navigator.userAgent ?? '').toLowerCase().includes('electron');
+        if (location.protocol !== 'file:' && !isElectron && 'serviceWorker' in navigator) {
           window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js');
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
           });
         }
       </script>

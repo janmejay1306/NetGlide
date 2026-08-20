@@ -618,7 +618,7 @@ export function PersonalizedDashboard({ profession, history, onNavigate, schedul
                 <Target className={`w-4 h-4 ${config.accentColor}`} />
                 Recommended for {config.label}s
               </h4>
-              <p className="text-[10px] text-gray-500 mb-4">Curated websites to boost your {config.trackingLabel.toLowerCase()}</p>
+              <p className="text-[10px] text-gray-500 mb-4">Curated websites to boost your {String(config.trackingLabel ?? '').toLowerCase()}</p>
 
               {filteredSuggestions.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

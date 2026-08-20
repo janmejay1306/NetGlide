@@ -159,6 +159,38 @@ const DEFAULT_SETTINGS: AppSettings = {
   downloadPath: '',
 };
 
+function parseStoredValue<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value) as T;
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeSettings(value: unknown): AppSettings {
+  const loaded = value && typeof value === 'object' ? value as Partial<AppSettings> : {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...loaded,
+    searchEngine: String(loaded.searchEngine ?? DEFAULT_SETTINGS.searchEngine),
+    homepage: String(loaded.homepage ?? DEFAULT_SETTINGS.homepage),
+    customHomepage: String(loaded.customHomepage ?? DEFAULT_SETTINGS.customHomepage),
+    cookiePolicy: String(loaded.cookiePolicy ?? DEFAULT_SETTINGS.cookiePolicy),
+    theme: String(loaded.theme ?? DEFAULT_SETTINGS.theme),
+    geminiApiKey: String(loaded.geminiApiKey ?? DEFAULT_SETTINGS.geminiApiKey),
+    userName: String(loaded.userName ?? DEFAULT_SETTINGS.userName),
+    avatarUrl: String(loaded.avatarUrl ?? DEFAULT_SETTINGS.avatarUrl),
+    uiDensity: String(loaded.uiDensity ?? DEFAULT_SETTINGS.uiDensity),
+    animationSpeed: String(loaded.animationSpeed ?? DEFAULT_SETTINGS.animationSpeed),
+    tabCloseAction: String(loaded.tabCloseAction ?? DEFAULT_SETTINGS.tabCloseAction),
+    fontFamily: String(loaded.fontFamily ?? DEFAULT_SETTINGS.fontFamily),
+    timeSectionTheme: String(loaded.timeSectionTheme ?? DEFAULT_SETTINGS.timeSectionTheme),
+    downloadPath: String(loaded.downloadPath ?? DEFAULT_SETTINGS.downloadPath),
+  };
+}
+
 // ── Google Autocomplete via JSONP ─────────────────────────────
 function fetchGoogleSuggestions(query: string): Promise<string[]> {
   return new Promise((resolve) => {
@@ -244,7 +276,10 @@ function App() {
   useEffect(() => {
     const saved = localStorage.getItem('netglide_recent_searches');
     if (saved) {
-      try { setRecentSearches(JSON.parse(saved)); } catch { /* ignore */ }
+      const loaded = parseStoredValue<unknown>(saved, []);
+      if (Array.isArray(loaded)) {
+        setRecentSearches(loaded.filter((item): item is string => typeof item === 'string'));
+      }
     }
   }, []);
 
@@ -252,7 +287,7 @@ function App() {
     setRecentSearches(prev => {
       const cleaned = query.trim();
       if (!cleaned) return prev;
-      const deduped = prev.filter(s => s.toLowerCase() !== cleaned.toLowerCase());
+      const deduped = prev.filter(s => String(s ?? '').toLowerCase() !== String(cleaned ?? '').toLowerCase());
       const updated = [cleaned, ...deduped].slice(0, 15);
       localStorage.setItem('netglide_recent_searches', JSON.stringify(updated));
       return updated;
@@ -287,7 +322,7 @@ function App() {
 
   // ── Search Suggestions (from history + bookmarks) ──────────
   const searchSuggestions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = String(searchQuery ?? '').trim().toLowerCase();
     if (!query) return [];
 
     const results: { type: string; title: string; url: string }[] = [];
@@ -296,7 +331,7 @@ function App() {
     // Bookmarks first (higher priority)
     bookmarks.forEach(bm => {
       if (results.length >= 5) return;
-      if (bm.title.toLowerCase().includes(query) || bm.url.toLowerCase().includes(query)) {
+      if (String(bm.title ?? '').toLowerCase().includes(query) || String(bm.url ?? '').toLowerCase().includes(query)) {
         if (!seenUrls.has(bm.url)) {
           seenUrls.add(bm.url);
           results.push({ type: 'bookmark', title: bm.title, url: bm.url });
@@ -307,7 +342,7 @@ function App() {
     // Then history (recent first)
     [...history].reverse().forEach(item => {
       if (results.length >= 8) return;
-      if (item.title.toLowerCase().includes(query) || item.url.toLowerCase().includes(query)) {
+      if (String(item.title ?? '').toLowerCase().includes(query) || String(item.url ?? '').toLowerCase().includes(query)) {
         if (!seenUrls.has(item.url)) {
           seenUrls.add(item.url);
           results.push({ type: 'history', title: item.title, url: item.url });
@@ -320,9 +355,9 @@ function App() {
 
   // ── Filtered recent-searches for dropdown ─────────────────
   const filteredRecentSearches = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = String(searchQuery ?? '').trim().toLowerCase();
     if (!q) return recentSearches.slice(0, 5);
-    return recentSearches.filter(s => s.toLowerCase().includes(q)).slice(0, 5);
+    return recentSearches.filter(s => String(s ?? '').toLowerCase().includes(q)).slice(0, 5);
   }, [searchQuery, recentSearches]);
 
   // ── Merged suggestion list for keyboard navigation ────────
@@ -336,16 +371,18 @@ function App() {
 
     // Recent searches first
     filteredRecentSearches.forEach(s => {
-      if (!seen.has(s.toLowerCase())) {
-        seen.add(s.toLowerCase());
+      const normalized = String(s ?? '').toLowerCase();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
         items.push({ kind: 'recent', label: s });
       }
     });
 
     // Google suggestions
     googleSuggestions.forEach(s => {
-      if (!seen.has(s.toLowerCase())) {
-        seen.add(s.toLowerCase());
+      const normalized = String(s ?? '').toLowerCase();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
         items.push({ kind: 'google', label: s });
       }
     });
@@ -374,34 +411,30 @@ function App() {
     const savedSchedules = localStorage.getItem('cozytab_schedules');
     const hasSeenPrompt = localStorage.getItem('cozytab_seen_prompt');
 
-    if (savedSettings) {
-      const loadedSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) };
-      setSettings(loadedSettings);
-      const theme = getTheme(loadedSettings.theme || 'gx-neon');
-      applyTheme(theme);
-    } else {
-      const defaultTheme = getTheme('gx-neon');
-      applyTheme(defaultTheme);
-    }
+    const loadedSettings = normalizeSettings(parseStoredValue(savedSettings, DEFAULT_SETTINGS));
+    setSettings(loadedSettings);
+    applyTheme(getTheme(String(loadedSettings.theme ?? DEFAULT_SETTINGS.theme)));
 
-    if (savedProfession) setProfession(savedProfession);
-    if (savedWorkspaces) {
-      const loadedWorkspaces = JSON.parse(savedWorkspaces);
-      const migratedWorkspaces = loadedWorkspaces.map((workspace: Workspace) => ({
-        ...workspace,
-        tabs: workspace.tabs.map((tab: Tab) => ({
-          ...tab,
-          history: tab.history || [],
-          historyIndex: tab.historyIndex ?? -1,
-        })),
-      }));
-      setWorkspaces(migratedWorkspaces);
+    if (savedProfession) setProfession(String(savedProfession));
+    const loadedWorkspaces = parseStoredValue<unknown>(savedWorkspaces, []);
+    if (Array.isArray(loadedWorkspaces)) {
+      const migratedWorkspaces = loadedWorkspaces
+        .filter((workspace): workspace is Workspace => Boolean(workspace && typeof workspace === 'object' && Array.isArray((workspace as Workspace).tabs)))
+        .map((workspace) => ({
+          ...workspace,
+          tabs: workspace.tabs.map((tab) => ({
+            ...tab,
+            history: Array.isArray(tab.history) ? tab.history : [],
+            historyIndex: tab.historyIndex ?? -1,
+          })),
+        }));
+      if (migratedWorkspaces.length > 0) setWorkspaces(migratedWorkspaces);
     }
-    if (savedBookmarks) setBookmarks(JSON.parse(savedBookmarks));
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
-    if (savedCustomLinks) setCustomLinks(JSON.parse(savedCustomLinks));
-    if (savedHiddenLinks) setHiddenLinkIds(JSON.parse(savedHiddenLinks));
-    if (savedSchedules) setSchedules(JSON.parse(savedSchedules));
+    if (savedBookmarks) setBookmarks(parseStoredValue<Bookmark[]>(savedBookmarks, []));
+    if (savedHistory) setHistory(parseStoredValue<HistoryItem[]>(savedHistory, []));
+    if (savedCustomLinks) setCustomLinks(parseStoredValue<import('./components/QuickLinks').QuickLink[]>(savedCustomLinks, []));
+    if (savedHiddenLinks) setHiddenLinkIds(parseStoredValue<string[]>(savedHiddenLinks, []));
+    if (savedSchedules) setSchedules(parseStoredValue<ScheduleItem[]>(savedSchedules, []));
     if (!hasSeenPrompt) setShowProfessionPrompt(true);
   }, []);
 
@@ -472,7 +505,7 @@ function App() {
     const { ipcRenderer } = (window as any).require('electron');
 
     const onStarted = (_event: any, data: { id: string; name: string; totalSize: string; savePath: string }) => {
-      const ext = data.name.split('.').pop()?.toLowerCase() || '';
+      const ext = String(data.name ?? '').split('.').pop()?.toLowerCase() || '';
       const iconMap: Record<string, string> = {
         zip: '🗜️', gz: '🗜️', tar: '🗜️', rar: '🗜️',
         pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', ppt: '📊',
@@ -520,7 +553,7 @@ function App() {
     const todayKey = new Date().toISOString().slice(0, 10);
     const saved = localStorage.getItem(`netglide_time_${todayKey}`);
     if (saved) {
-      try { setTimeTracking(JSON.parse(saved)); } catch { setTimeTracking({}); }
+      setTimeTracking(parseStoredValue<Record<string, number>>(saved, {}));
     }
 
     // Track time on the active tab every second

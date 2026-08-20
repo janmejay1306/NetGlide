@@ -11,3 +11,6 @@ file_*.png
 out
 *.zip
 *.pdf
+
+*.exe
+~$*

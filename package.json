@@ -42,7 +42,8 @@
     "publish": {
       "provider": "github",
       "owner": "janmejay1306",
-      "repo": "NetGlide"
+      "repo": "NetGlide",
+      "releaseType": "release"
     },
     "win": {
       "target": [

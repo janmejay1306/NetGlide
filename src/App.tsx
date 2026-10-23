@@ -498,11 +498,11 @@ function App() {
     setSchedules(prev => prev.filter(s => s.id !== id));
   }, []);
 
-  // ── Real Electron Download Tracking ──────────────────────────
+  // ── Real Download Tracking (CEF / Electron) ───────────────────
   useEffect(() => {
-    const isElectronEnv = typeof window !== 'undefined' && (window as any).require;
-    if (!isElectronEnv) return;
-    const { ipcRenderer } = (window as any).require('electron');
+    const isAvailable = typeof window !== 'undefined' && ((window as any).ipcRenderer || (window as any).require);
+    if (!isAvailable) return;
+    const ipcRenderer = (window as any).ipcRenderer || (window as any).require('electron').ipcRenderer;
 
     const onStarted = (_event: any, data: { id: string; name: string; totalSize: string; savePath: string }) => {
       const ext = String(data.name ?? '').split('.').pop()?.toLowerCase() || '';
@@ -1467,13 +1467,12 @@ function App() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => {
-                              const isElectronEnv = typeof window !== 'undefined' && (window as any).require;
-                              if (isElectronEnv) {
-                                const { ipcRenderer } = (window as any).require('electron');
+                              const isAvailable = typeof window !== 'undefined' && ((window as any).ipcRenderer || (window as any).require);
+                              if (isAvailable) {
+                                const ipcRenderer = (window as any).ipcRenderer || (window as any).require('electron').ipcRenderer;
                                 ipcRenderer.send('open-download-folder');
                               } else {
-                                // In browser dev mode, Electron IPC is unavailable
-                                console.info('[NetGlide] Open Folder requires the Electron app (npm run electron:dev)');
+                                console.info('[NetGlide] Open Folder requires the CEF desktop app');
                               }
                             }}
                             className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-purple-400 transition-colors"

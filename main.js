@@ -114,7 +114,13 @@ function setupAutoUpdater() {
     });
   });
 
-  autoUpdater.checkForUpdates();
+  autoUpdater.on('error', (err) => {
+    console.error('[NetGlide] Auto-updater error (non-fatal):', err);
+  });
+
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.error('[NetGlide] Check for updates failed (non-fatal):', err);
+  });
 }
 
 // ---------------------------------------------------------------------------

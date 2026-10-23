@@ -87,11 +87,11 @@ function extractDomain(url: string): string {
 
 // ── Fetch results via Electron IPC (main process proxy) ───────
 async function fetchSearchResults(query: string, engine: string): Promise<SearchResult[]> {
-  const isElectron = typeof window !== 'undefined' && (window as any).require;
+  const hasIpc = typeof window !== 'undefined' && ((window as any).ipcRenderer || (window as any).require);
   
-  if (isElectron) {
+  if (hasIpc) {
     try {
-      const { ipcRenderer } = (window as any).require('electron');
+      const ipcRenderer = (window as any).ipcRenderer || (window as any).require('electron').ipcRenderer;
       const results = await ipcRenderer.invoke('search-query', { query, engine });
       if (results && results.length > 0) return results;
     } catch (err) {

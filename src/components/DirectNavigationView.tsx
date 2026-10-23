@@ -34,35 +34,36 @@ export function DirectNavigationView({ url, onTitleChange }: DirectNavigationVie
     setLoadError(null);
     onTitleChange(hostnameOrUrl || 'Loading...');
 
-    // Electron path: open in the user's default browser using electron.shell.
-    if (isElectron) {
+    // Desktop runtime (CEF or Electron): open using native shell
+    if (isElectron || (typeof window !== 'undefined' && ((window as any).ipcRenderer || (window as any).cefQuery))) {
       setIsCreating(true);
       setCreated(false);
 
       try {
-        const electron = (window as any).require?.('electron');
-        const shell = electron?.shell;
-        if (shell && typeof shell.openExternal === 'function') {
-          shell.openExternal(url);
+        if ((window as any).ipcRenderer) {
+          (window as any).ipcRenderer.send('open-external', url);
+        } else {
+          const electron = (window as any).require?.('electron');
+          const shell = electron?.shell;
+          if (shell && typeof shell.openExternal === 'function') {
+            shell.openExternal(url);
+          }
         }
         setIsCreating(false);
         setCreated(true);
       } catch (err: any) {
-        console.error('Electron shell openExternal failed:', err);
+        console.error('Shell openExternal failed:', err);
         setIsCreating(false);
         setCreated(false);
         setLoadError(err?.message || 'Failed to open in browser');
       }
-
-      // We don't manage a child window's lifecycle here; Electron/browser
-      // handles the external tab. Nothing to clean up on unmount.
       return;
     }
 
-    // Unknown runtime: don't hang forever.
+    // Fallback: window.open in browser mode
+    window.open(url, '_blank');
     setIsCreating(false);
-    setCreated(false);
-    setLoadError('Navigation runtime not available (Electron not detected).');
+    setCreated(true);
   }, [hostnameOrUrl, isElectron, onTitleChange, tabId, url]);
 
   if (!url) {

@@ -14,3 +14,9 @@ out
 
 *.exe
 ~$*
+build/
+cef/
+cef_cache/
+*.tar
+*.tar.bz2
+*.electron_backup
